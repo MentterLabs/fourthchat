@@ -6,7 +6,7 @@ import { knowledgeBases, knowledgeSources, users } from "@/lib/schema"
 import { eq, desc, and } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
-import { extractTextFromPdf, extractTextFromUrl } from "@/lib/source-processor"
+import { extractTextFromPdf, extractTextFromUrl, extractTextFromDocx, extractTextFromXlsx, extractTextFromTextFile } from "@/lib/source-processor"
 
 
 const createKnowledgeBaseSchema = z.object({
@@ -102,71 +102,107 @@ export async function addKnowledgeSource(kbId: string, formData: FormData) {
     if (!session?.user?.id) return { error: "Unauthorized" }
 
     const type = formData.get("type") as "text" | "url" | "file"
-    const name = formData.get("name") as string
+    const nameInput = formData.get("name") as string
 
-    // File handling
-    const file = formData.get("file") as File | null
-    // Text/URL handling
-    const contentInput = formData.get("content") as string
+    if (!type) return { error: "Missing required fields" }
 
-    if (!name || !type) return { error: "Missing required fields" }
-
-    let extractedText = ""
-    let originalPath = ""
+    const user = await db.query.users.findFirst({
+        where: eq(users.id, session.user.id)
+    })
+    const settings = user?.settings || {}
+    if (!settings.embeddingProvider) {
+        return { error: "Please configure an Embedding Model in Settings > Models before adding knowledge." }
+    }
 
     try {
-        if (type === "file" && file) {
-            if (file.type === "application/pdf") {
+        const sourceIds: string[] = []
+
+        if (type === "file") {
+            const files = formData.getAll("file") as File[]
+            if (files.length === 0) return { error: "No files uploaded" }
+
+            for (const file of files) {
+                let extractedText = ""
                 const buffer = Buffer.from(await file.arrayBuffer())
-                extractedText = await extractTextFromPdf(buffer)
-                originalPath = file.name
-            } else {
-                return { error: "Only PDF files are supported currently" }
+                const ext = file.name.split('.').pop()?.toLowerCase() || ""
+                const mime = file.type
+
+                if (mime === "application/pdf" || ext === "pdf") {
+                    extractedText = await extractTextFromPdf(buffer)
+                } else if (mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || ext === "docx") {
+                    extractedText = await extractTextFromDocx(buffer)
+                } else if (mime === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" || ext === "xlsx") {
+                    extractedText = await extractTextFromXlsx(buffer)
+                } else if (mime.startsWith("text/") || ["txt", "md", "csv"].includes(ext)) {
+                    extractedText = await extractTextFromTextFile(buffer)
+                } else {
+                    console.warn(`Skipping unsupported file type: ${file.name} (${mime})`)
+                    continue
+                }
+
+                if (!extractedText.trim()) continue
+
+                const [source] = await db.insert(knowledgeSources).values({
+                    knowledgeBaseId: kbId,
+                    name: file.name,
+                    type: "file",
+                    content: extractedText,
+                    originalPath: file.name,
+                    lastSyncedAt: new Date(),
+                    status: "processing",
+                }).returning()
+
+                sourceIds.push(source.id)
+
+                const { processKnowledgeSource } = await import("@/lib/knowledge-processor")
+                processKnowledgeSource(source.id, kbId, extractedText, session.user!.id!).catch(console.error)
             }
         } else if (type === "url") {
-            extractedText = await extractTextFromUrl(contentInput)
-            originalPath = contentInput
-        } else if (type === "text") {
-            extractedText = contentInput
-            originalPath = "text_input"
-        } else {
-            return { error: "Invalid input" }
-        }
+            const contentInput = formData.get("content") as string
+            const extractedText = await extractTextFromUrl(contentInput)
+            if (!extractedText.trim()) return { error: "No text extracted from URL" }
 
-        if (!extractedText.trim()) {
-            return { error: "No text extracted" }
-        }
-
-        const user = await db.query.users.findFirst({
-            where: eq(users.id, session.user.id)
-        })
-        const settings = user?.settings || {}
-        if (!settings.embeddingProvider) {
-            return { error: "Please configure an Embedding Model in Settings > Models before adding knowledge." }
-        }
-
-        const [source] = await db.insert(knowledgeSources).values({
-            knowledgeBaseId: kbId,
-            name,
-            type,
-            content: extractedText,
-            originalPath,
-            lastSyncedAt: new Date(),
-            status: "processing",
-        }).returning()
-
-        import("@/lib/knowledge-processor").then(({ processKnowledgeSource }) => {
+            const [source] = await db.insert(knowledgeSources).values({
+                knowledgeBaseId: kbId,
+                name: nameInput || contentInput,
+                type: "url",
+                content: extractedText,
+                originalPath: contentInput,
+                lastSyncedAt: new Date(),
+                status: "processing",
+            }).returning()
+            sourceIds.push(source.id)
+            const { processKnowledgeSource } = await import("@/lib/knowledge-processor")
             processKnowledgeSource(source.id, kbId, extractedText, session.user!.id!).catch(console.error)
-        })
+        } else if (type === "text") {
+            const contentInput = formData.get("content") as string
+            const [source] = await db.insert(knowledgeSources).values({
+                knowledgeBaseId: kbId,
+                name: nameInput || "Text Note",
+                type: "text",
+                content: contentInput,
+                originalPath: "text_input",
+                lastSyncedAt: new Date(),
+                status: "processing",
+            }).returning()
+            sourceIds.push(source.id)
+            const { processKnowledgeSource } = await import("@/lib/knowledge-processor")
+            processKnowledgeSource(source.id, kbId, contentInput, session.user!.id!).catch(console.error)
+        }
+
+        if (sourceIds.length === 0) {
+            return { error: "No valid sources were added" }
+        }
 
         revalidatePath(`/dashboard/knowledge-base/${kbId}`)
-        return { success: true, sourceId: source.id }
+        return { success: true, count: sourceIds.length }
 
     } catch (error) {
         console.error("Failed to add source:", error)
         return { error: "Failed to process source" }
     }
 }
+
 
 export async function deleteKnowledgeSource(sourceId: string) {
     const session = await auth()

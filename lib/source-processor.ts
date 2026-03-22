@@ -1,9 +1,30 @@
 import * as cheerio from "cheerio"
 import pdf from "pdf-parse"
+import mammoth from "mammoth"
+import * as XLSX from "xlsx"
 
 export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
     const data = await pdf(buffer)
     return data.text
+}
+
+export async function extractTextFromDocx(buffer: Buffer): Promise<string> {
+    const result = await mammoth.extractRawText({ buffer })
+    return result.value
+}
+
+export async function extractTextFromXlsx(buffer: Buffer): Promise<string> {
+    const workbook = XLSX.read(buffer, { type: 'buffer' })
+    let text = ""
+    workbook.SheetNames.forEach(sheetName => {
+        const worksheet = workbook.Sheets[sheetName]
+        text += XLSX.utils.sheet_to_txt(worksheet) + "\n"
+    })
+    return text
+}
+
+export async function extractTextFromTextFile(buffer: Buffer): Promise<string> {
+    return buffer.toString('utf-8')
 }
 
 export async function extractTextFromUrl(url: string): Promise<string> {
@@ -32,3 +53,4 @@ export function chunkText(text: string, chunkSize: number = 1000, overlap: numbe
 
     return chunks
 }
+

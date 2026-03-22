@@ -1,10 +1,17 @@
 import type { NextConfig } from "next";
 
-const nextConfig: NextConfig = {
+const nextConfig = {
   output: "standalone",
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '10mb',
+    },
+  },
   serverExternalPackages: [
     "keyv",
     "pdf-parse",
+    "mammoth",
+    "xlsx",
     "@cacheable/utils",
     "@cacheable/memory",
     "cacheable",
@@ -17,6 +24,7 @@ const nextConfig: NextConfig = {
     "@chat-adapter/telegram",
     "@whiskeysockets/baileys"
   ],
-};
+} as NextConfig;
+
 
 export default nextConfig;

@@ -252,24 +252,26 @@ export function KnowledgeBaseDetail({ kb, hasEmbeddingConfig }: { kb: KnowledgeB
                                                 size="sm"
                                                 onClick={() => setType("file")}
                                             >
-                                                PDF
+                                                Files
                                             </Button>
                                         </div>
                                         <input type="hidden" name="type" value={type} />
                                     </div>
 
-                                    <div className="grid grid-cols-4 items-center gap-4">
-                                        <Label htmlFor="name" className="text-right">
-                                            Name
-                                        </Label>
-                                        <Input
-                                            id="name"
-                                            name="name"
-                                            placeholder="e.g. My Source"
-                                            className="col-span-3"
-                                            required
-                                        />
-                                    </div>
+                                    {type !== "file" && (
+                                        <div className="grid grid-cols-4 items-center gap-4">
+                                            <Label htmlFor="name" className="text-right">
+                                                Name
+                                            </Label>
+                                            <Input
+                                                id="name"
+                                                name="name"
+                                                placeholder="e.g. My Source"
+                                                className="col-span-3"
+                                                required
+                                            />
+                                        </div>
+                                    )}
 
                                     {type === "text" && (
                                         <div className="grid grid-cols-4 items-start gap-4">
@@ -304,18 +306,20 @@ export function KnowledgeBaseDetail({ kb, hasEmbeddingConfig }: { kb: KnowledgeB
                                     {type === "file" && (
                                         <div className="grid grid-cols-4 items-center gap-4">
                                             <Label htmlFor="file" className="text-right">
-                                                PDF File
+                                                Files
                                             </Label>
                                             <Input
                                                 id="file"
                                                 name="file"
                                                 type="file"
-                                                accept=".pdf"
+                                                multiple
+                                                accept=".pdf,.docx,.xlsx,.txt,.md,.csv"
                                                 className="col-span-3"
                                                 required
                                             />
                                         </div>
                                     )}
+
                                 </div>
                                 <DialogFooter>
                                     <Button type="submit">Add Source</Button>

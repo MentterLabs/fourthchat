@@ -29,7 +29,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: Mentter-Labs/fourthchat
+          images: mentterlabs/fourthchat
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}

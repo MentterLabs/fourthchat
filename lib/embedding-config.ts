@@ -6,7 +6,7 @@ export type EmbeddingProvider = "openai" | "gemini"
 
 export const EMBEDDING_DIMENSIONS: Record<EmbeddingProvider, number> = {
     openai: 1536,
-    gemini: 768,
+    gemini: 3072,
 }
 
 export function createEmbeddingModel(provider: string, apiKey: string, modelId?: string): EmbeddingModel<string> {
@@ -16,7 +16,8 @@ export function createEmbeddingModel(provider: string, apiKey: string, modelId?:
             return openai.embedding(modelId || "text-embedding-3-small")
         case "gemini":
             const google = createGoogleGenerativeAI({ apiKey })
-            return google.textEmbeddingModel(modelId || "text-embedding-004")
+            const actualModelId = modelId === "text-embedding-004" ? "gemini-embedding-001" : (modelId || "gemini-embedding-001")
+            return google.textEmbeddingModel(actualModelId)
         default:
             throw new Error(`Unsupported embedding provider: ${provider}`)
     }

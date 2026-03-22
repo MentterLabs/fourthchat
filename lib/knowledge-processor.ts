@@ -89,10 +89,22 @@ async function processSource(sourceId: string, kbId: string, extractedText: stri
             },
         }))
 
-        await qdrant.upsert(CHATBOT_COLLECTION, {
-            wait: true,
-            points,
-        })
+        if (points.some(p => !Array.isArray(p.vector) || p.vector.some(v => isNaN(v)))) {
+            throw new Error("One or more points have invalid vectors (not an array or contains NaN)");
+        }
+
+        try {
+            await qdrant.upsert(CHATBOT_COLLECTION, {
+                wait: true,
+                points,
+            })
+        } catch (error: unknown) {
+            const err = error as { status?: number; data?: unknown };
+            if (err.status === 400 && err.data) {
+                console.error("[Qdrant Error]", JSON.stringify(err.data, null, 2));
+            }
+            throw error;
+        }
 
         await db.update(knowledgeSources)
             .set({ status: "ready" })

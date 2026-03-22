@@ -9,7 +9,7 @@ import { openai } from "@ai-sdk/openai"
 import { google } from "@ai-sdk/google"
 import { getRelevantContext } from "@/lib/rag-utils"
 import { sendWebhook } from "@/lib/webhook-sender"
-import type { ConnectionConfig } from "@/lib/types"
+import type { WebhookConfig } from "@/lib/types"
 
 // Force rebuild
 export const runtime = "nodejs"
@@ -228,9 +228,13 @@ export async function POST(req: Request) {
         }).returning()
 
         // 12. Queue webhook delivery
-        const webhookConfig = connection.config as ConnectionConfig | null
-        const webhookUrl = webhookConfig?.webhookUrl
-        const secret = webhookConfig?.secret
+        const webhookConfig = {
+            type: connection.type,
+            ...(connection.config as Record<string, unknown>)
+        } as WebhookConfig
+
+        const webhookUrl = webhookConfig.type === "webhook" ? webhookConfig.webhookUrl : undefined
+        const secret = webhookConfig.type === "webhook" ? webhookConfig.secret : undefined
 
         if (webhookUrl) {
             const payload = {
@@ -256,7 +260,7 @@ export async function POST(req: Request) {
                 webhookUrl,
                 secret: secret || "",
                 payload,
-                headers: (webhookConfig?.headers as Record<string, string> | undefined) || {}
+                headers: (webhookConfig.headers as Record<string, string> | undefined) || {}
             }).catch(console.error)
         }
 

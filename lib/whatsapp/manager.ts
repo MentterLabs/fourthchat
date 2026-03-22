@@ -5,12 +5,13 @@ import makeWASocket, {
     WASocket,
     ConnectionState
 } from "@whiskeysockets/baileys"
-import { createDrizzleAuthState } from "./auth"
 import { pino } from "pino"
-import { processWhatsAppMessage } from "../ai-processing"
-import { connections } from "@/lib/schema"
-import { eq } from "drizzle-orm"
+import { eq, and } from "drizzle-orm"
 import { db } from "@/lib/db"
+import { bot, state as chatState } from "../chat"
+import { connections } from "@/lib/schema"
+import { createDrizzleAuthState } from "./auth"
+import { BaileysAdapter } from "../chat/adapters/baileys-adapter"
 
 export type WhatsAppStatus = "connecting" | "connected" | "disconnected" | "qr_ready"
 
@@ -109,8 +110,6 @@ class WhatsAppManager {
 
             sock.ev.on('connection.update', (update: Partial<ConnectionState>) => {
                 const { connection, lastDisconnect, qr } = update
-                console.log(`Connection update [${connectionId}]:`, { connection, hasQr: !!qr, lastDisconnect })
-
                 const currentSession = this.getSession(connectionId)
 
                 if (qr) {
@@ -170,25 +169,33 @@ class WhatsAppManager {
 
                             const nextTask = currentQueue.then(async () => {
                                 try {
-                                    const phoneNumber = remoteJid.split('@')[0]
+                                    const remoteJid = msg.key.remoteJid!
 
                                     const connection = await db.query.connections.findFirst({
                                         where: eq(connections.id, connectionId)
                                     })
 
                                     if (connection && connection.isActive) {
-                                        await processWhatsAppMessage(
-                                            connection.chatbotId,
-                                            phoneNumber,
-                                            text,
+                                        await chatState.connect();
+                                        await bot.initialize();
+
+                                        const adapter = new BaileysAdapter({
+                                            socket: session.socket!,
+                                            phoneNumberId: connection.id,
+                                            name: "whatsapp-native"
+                                        });
+
+                                        const threadId = adapter.encodeThreadId({
+                                            phoneNumberId: connection.id,
+                                            userWaId: remoteJid
+                                        });
+
+                                        const chatMessage = adapter.parseMessage({
+                                            socket: session.socket!,
                                             remoteJid,
-                                            async (to, replyText) => {
-                                                const s = this.getSession(connectionId)
-                                                if (s.socket) {
-                                                    await s.socket.sendMessage(to, { text: replyText })
-                                                }
-                                            }
-                                        )
+                                            message: msg
+                                        });
+                                        bot.processMessage(adapter, threadId, chatMessage);
                                     }
                                 } catch (e) {
                                     console.error(`[${connectionId}] Error processing incoming message:`, e)
@@ -234,12 +241,29 @@ class WhatsAppManager {
             }
         }
     }
+
+    public async connectAll() {
+        const activeConnections = await db.query.connections.findMany({
+            where: and(
+                eq(connections.type, "whatsapp-native"),
+                eq(connections.isActive, true)
+            )
+        });
+
+        for (const conn of activeConnections) {
+            try {
+                this.connect(conn.id);
+            } catch (err) {
+                console.error(`[WhatsApp Manager] Failed to connect bot ${conn.id}:`, err);
+            }
+        }
+    }
 }
 
-const globalForWhatsApp = globalThis as unknown as { whatsappManagerV2: WhatsAppManager }
+const globalForWhatsApp = globalThis as unknown as { whatsappManagerV3: WhatsAppManager }
 
-const whatsappManager = globalForWhatsApp.whatsappManagerV2 || new WhatsAppManager()
+const whatsappManager = globalForWhatsApp.whatsappManagerV3 || new WhatsAppManager()
 
-if (process.env.NODE_ENV !== "production") globalForWhatsApp.whatsappManagerV2 = whatsappManager
+if (process.env.NODE_ENV !== "production") globalForWhatsApp.whatsappManagerV3 = whatsappManager
 
 export default whatsappManager

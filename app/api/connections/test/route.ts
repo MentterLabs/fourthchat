@@ -4,7 +4,7 @@ import { db } from "@/lib/db"
 import { connections } from "@/lib/schema"
 import { eq, and } from "drizzle-orm"
 import { createHmac } from "crypto"
-import type { ConnectionConfig } from "@/lib/types"
+import type { WebhookConfig } from "@/lib/types"
 
 export async function POST(req: Request) {
     const session = await auth()
@@ -42,7 +42,7 @@ export async function POST(req: Request) {
             )
         }
 
-        const config = connection.config as ConnectionConfig | null
+        const config = connection.config as WebhookConfig | null
         const webhookUrl = config?.webhookUrl
         const secret = config?.secret
 
@@ -77,7 +77,7 @@ export async function POST(req: Request) {
                 "X-Webhook-Signature": signature,
                 "X-Webhook-Timestamp": new Date().toISOString(),
                 "User-Agent": "Chatbot-Webhook-Test/1.0",
-                ...(config.headers || {})
+                ...(config?.headers || {})
             },
             body: JSON.stringify(testPayload),
             signal: AbortSignal.timeout(10000) // 10s timeout for test

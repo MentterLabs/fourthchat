@@ -4,7 +4,7 @@ import { db } from "@/lib/db"
 import { connections, chatbots } from "@/lib/schema"
 import { eq, and, desc } from "drizzle-orm"
 import { randomBytes } from "crypto"
-import type { ConnectionConfig } from "@/lib/types"
+import type { ConnectionConfig, WebhookConfig } from "@/lib/types"
 import { deleteDrizzleAuthState } from "@/lib/whatsapp/auth"
 
 export async function GET(req: Request) {
@@ -43,14 +43,20 @@ export async function GET(req: Request) {
         })
 
         const sanitizedConnections = allConnections.map(conn => {
-            const config = conn.config as ConnectionConfig | null
+            const config = {
+                type: conn.type,
+                ...(conn.config as Record<string, unknown>)
+            } as ConnectionConfig
+
+            const isWebhook = config.type === "webhook";
+
             return {
                 ...conn,
                 chatbotName: conn.chatbot?.name,
-                config: config ? {
+                config: {
                     ...config,
-                    secret: config.secret ? "••••••••" : undefined
-                } : null
+                    secret: (isWebhook && (config as WebhookConfig).secret) ? "••••••••" : undefined
+                }
             }
         })
 
@@ -126,9 +132,43 @@ export async function POST(req: Request) {
             chatbotId,
             type,
             name,
-            config,
+            config: {
+                ...config,
+                type
+            },
             isActive: true
         }).returning()
+
+        if (type === "telegram" && config.botToken) {
+            const appUrl = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL;
+            if (!appUrl) {
+                return NextResponse.json({ 
+                    error: "APP_URL is not configured. Webhook registration skipped.",
+                    connection: newConnection 
+                }, { status: 400 });
+            }
+
+            const webhookUrl = `${appUrl}/api/webhooks/telegram?connectionId=${newConnection.id}`;
+            const telegramApiUrl = `https://api.telegram.org/bot${config.botToken}/setWebhook?url=${webhookUrl}`;
+
+            try {
+                const response = await fetch(telegramApiUrl);
+                const result = await response.json();
+
+                if (!response.ok || !result.ok) {
+                    return NextResponse.json({ 
+                        error: `Failed to register Telegram webhook: ${result.description || "Unknown error"}`,
+                        connection: newConnection 
+                    }, { status: 400 });
+                }
+            } catch (err) {
+                console.error("[Telegram Registration] Error setting webhook:", err);
+                return NextResponse.json({ 
+                    error: "Network error while registering Telegram webhook.",
+                    connection: newConnection 
+                }, { status: 500 });
+            }
+        }
 
         return NextResponse.json(newConnection)
 

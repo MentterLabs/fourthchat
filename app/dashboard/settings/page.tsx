@@ -393,7 +393,7 @@ export default function SettingsPage() {
                                             setEmbeddingProvider(value)
                                             // Reset model when provider changes
                                             if (value === "openai") setEmbeddingModel("text-embedding-3-small")
-                                            if (value === "gemini") setEmbeddingModel("text-embedding-004")
+                                            if (value === "gemini") setEmbeddingModel("gemini-embedding-001")
                                         }}
                                     >
                                         <SelectTrigger>
@@ -421,7 +421,7 @@ export default function SettingsPage() {
                                             )}
                                             {embeddingProvider === "gemini" && (
                                                 <>
-                                                    <SelectItem value="text-embedding-004">Text Embedding 004</SelectItem>
+                                                    <SelectItem value="gemini-embedding-001">Gemini Embedding 001</SelectItem>
                                                 </>
                                             )}
                                         </SelectContent>

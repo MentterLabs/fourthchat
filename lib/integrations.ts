@@ -83,6 +83,14 @@ export const integrations: Integration[] = [
                 helpText: "From Meta Developer Console → WhatsApp → API Setup"
             },
             {
+                key: "businessAccountId",
+                label: "Business Account ID",
+                type: "text",
+                placeholder: "9876543210xxxxx",
+                required: false,
+                helpText: "Your WhatsApp Business Account ID (optional)"
+            },
+            {
                 key: "accessToken",
                 label: "Access Token",
                 type: "password",
@@ -91,20 +99,20 @@ export const integrations: Integration[] = [
                 helpText: "Permanent access token from System User"
             },
             {
+                key: "appSecret",
+                label: "App Secret",
+                type: "password",
+                placeholder: "Your Meta App Secret",
+                required: true,
+                helpText: "Meta Dashboard → App Settings → Basic → App Secret"
+            },
+            {
                 key: "verifyToken",
                 label: "Verify Token",
                 type: "text",
                 placeholder: "my_custom_verify_token",
                 required: true,
                 helpText: "A custom token you create. Use this same token when configuring the webhook in Meta."
-            },
-            {
-                key: "businessAccountId",
-                label: "Business Account ID",
-                type: "text",
-                placeholder: "9876543210xxxxx",
-                required: false,
-                helpText: "Your WhatsApp Business Account ID (optional)"
             }
         ],
         webhookEndpoint: "/api/webhooks/whatsapp",
@@ -127,7 +135,7 @@ export const integrations: Integration[] = [
         description: "Connect your chatbot to Slack workspaces.",
         icon: "Hash",
         category: "messaging",
-        status: "coming-soon",
+        status: "available",
         configFields: [
             {
                 key: "botToken",
@@ -146,7 +154,7 @@ export const integrations: Integration[] = [
                 helpText: "For verifying Slack requests"
             }
         ],
-        webhookEndpoint: "/api/webhooks/slack",
+        webhookEndpoint: "/api/webhooks/slack?connectionId=***",
         docsPath: "/docs/integrations/slack",
         externalDocsUrl: "https://api.slack.com/docs"
     },
@@ -156,7 +164,7 @@ export const integrations: Integration[] = [
         description: "Add your chatbot to Discord servers.",
         icon: "Gamepad2",
         category: "social",
-        status: "coming-soon",
+        status: "available",
         configFields: [
             {
                 key: "botToken",
@@ -173,9 +181,17 @@ export const integrations: Integration[] = [
                 placeholder: "123456789012345678",
                 required: true,
                 helpText: "Your Discord application ID"
+            },
+            {
+                key: "publicKey",
+                label: "Public Key",
+                type: "text",
+                placeholder: "Your Discord public key",
+                required: true,
+                helpText: "From Discord Developer Portal (General Information)"
             }
         ],
-        webhookEndpoint: "/api/webhooks/discord",
+        webhookEndpoint: "/api/webhooks/discord?connectionId=***",
         docsPath: "/docs/integrations/discord",
         externalDocsUrl: "https://discord.com/developers/docs"
     },
@@ -185,7 +201,7 @@ export const integrations: Integration[] = [
         description: "Connect your chatbot to Telegram.",
         icon: "Send",
         category: "messaging",
-        status: "coming-soon",
+        status: "available",
         configFields: [
             {
                 key: "botToken",

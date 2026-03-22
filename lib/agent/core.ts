@@ -1,7 +1,7 @@
 import { AgentConfig, AgentContext, AgentResponse } from "./types"
 import { getRelevantContext } from "@/lib/rag-utils"
 import { createModelInstance } from "@/lib/ai-helper"
-import { generateText } from "ai"
+import { generateText, streamText } from "ai"
 import { db } from "@/lib/db"
 import { messages } from "@/lib/schema"
 import { eq } from "drizzle-orm"
@@ -11,8 +11,12 @@ export class ChatbotAgent {
 
     public async process(message: string, conversationId: string): Promise<AgentResponse> {
         const context = await this.buildContext(message, conversationId)
-        const response = await this.generateResponse(message, context)
-        return response
+        return this.generateResponse(message, context)
+    }
+
+    public async stream(message: string, conversationId: string): Promise<AgentResponse> {
+        const context = await this.buildContext(message, conversationId)
+        return this.generateStreamResponse(message, context)
     }
 
     private async buildContext(message: string, conversationId: string): Promise<AgentContext> {
@@ -37,6 +41,42 @@ export class ChatbotAgent {
     }
 
     private async generateResponse(message: string, context: AgentContext): Promise<AgentResponse> {
+        const { systemPrompt, model } = await this.preparePromptAndModel(context)
+
+        const { text, usage } = await generateText({
+            model,
+            system: systemPrompt,
+            messages: [
+                ...context.history,
+                { role: "user", content: message }
+            ]
+        })
+
+        return {
+            text,
+            usage
+        }
+    }
+
+    private async generateStreamResponse(message: string, context: AgentContext): Promise<AgentResponse> {
+        const { systemPrompt, model } = await this.preparePromptAndModel(context)
+
+        const { textStream, text } = await streamText({
+            model,
+            system: systemPrompt,
+            messages: [
+                ...context.history,
+                { role: "user", content: message }
+            ]
+        })
+
+        return {
+            text: await text,
+            stream: textStream
+        }
+    }
+
+    private async preparePromptAndModel(context: AgentContext) {
         let systemPrompt = this.config.settings.systemPrompt || ""
 
         if (context.ragContext) {
@@ -58,18 +98,6 @@ export class ChatbotAgent {
         const modelName = this.config.settings.model || "gpt-4-turbo"
         const model = await createModelInstance(modelName, this.config.userId)
 
-        const { text, usage } = await generateText({
-            model,
-            system: systemPrompt,
-            messages: [
-                ...context.history,
-                { role: "user", content: message }
-            ]
-        })
-
-        return {
-            text,
-            usage
-        }
+        return { systemPrompt, model }
     }
 }

@@ -24,6 +24,7 @@ export interface AgentContext {
 }
 
 export interface AgentResponse {
-    text: string
-    usage?: LanguageModelUsage
+    text: string;
+    usage?: LanguageModelUsage;
+    stream?: AsyncIterable<string>;
 }

@@ -213,10 +213,16 @@ export default function ConnectionsPage({ params }: ConnectionsPageProps) {
         return integrations.find(i => i.type === type)
     }
 
-    const getWebhookUrl = (integration: Integration) => {
+    const getWebhookUrl = (integration: Integration, connectionId?: string) => {
         if (!integration.webhookEndpoint) return null
         const baseUrl = typeof window !== "undefined" ? window.location.origin : ""
-        return `${baseUrl}${integration.webhookEndpoint}`
+        let endpoint = integration.webhookEndpoint
+        if (connectionId) {
+            endpoint = endpoint.replace("***", connectionId)
+        } else {
+            endpoint = endpoint.replace("***", "YOUR_CONNECTION_ID")
+        }
+        return `${baseUrl}${endpoint}`
     }
 
     return (
@@ -354,41 +360,53 @@ export default function ConnectionsPage({ params }: ConnectionsPageProps) {
                                     )}
 
                                     {/* Dynamic Config Fields */}
-                                    {selectedIntegration?.configFields.map((field) => (
-                                        <div key={field.key} className="space-y-2">
-                                            <Label htmlFor={field.key}>
-                                                {field.label} {field.required && "*"}
-                                            </Label>
-                                            {field.type === "textarea" ? (
-                                                <Textarea
-                                                    id={field.key}
-                                                    placeholder={field.placeholder}
-                                                    value={configValues[field.key] || ""}
-                                                    onChange={(e) => setConfigValues({
-                                                        ...configValues,
-                                                        [field.key]: e.target.value
-                                                    })}
-                                                    rows={3}
-                                                />
-                                            ) : (
-                                                <Input
-                                                    id={field.key}
-                                                    type={field.type === "password" ? "password" : field.type === "url" ? "url" : "text"}
-                                                    placeholder={field.placeholder}
-                                                    value={configValues[field.key] || ""}
-                                                    onChange={(e) => setConfigValues({
-                                                        ...configValues,
-                                                        [field.key]: e.target.value
-                                                    })}
-                                                />
-                                            )}
-                                            {field.helpText && (
-                                                <p className="text-xs text-muted-foreground">
-                                                    {field.helpText}
-                                                </p>
-                                            )}
-                                        </div>
-                                    ))}
+                                    <div className="grid grid-cols-2 gap-4">
+                                        {selectedIntegration?.configFields.map((field) => {
+                                            const isWhatsApp = selectedIntegration.type === "whatsapp-business";
+                                            const isSideBySide = isWhatsApp && (
+                                                field.key === "phoneNumberId" ||
+                                                field.key === "businessAccountId" ||
+                                                field.key === "appSecret" ||
+                                                field.key === "verifyToken"
+                                            );
+
+                                            return (
+                                                <div key={field.key} className={`space-y-2 ${isSideBySide ? "col-span-1" : "col-span-2"}`}>
+                                                    <Label htmlFor={field.key}>
+                                                        {field.label} {field.required && "*"}
+                                                    </Label>
+                                                    {field.type === "textarea" ? (
+                                                        <Textarea
+                                                            id={field.key}
+                                                            placeholder={field.placeholder}
+                                                            value={configValues[field.key] || ""}
+                                                            onChange={(e) => setConfigValues({
+                                                                ...configValues,
+                                                                [field.key]: e.target.value
+                                                            })}
+                                                            rows={3}
+                                                        />
+                                                     ) : (
+                                                        <Input
+                                                            id={field.key}
+                                                            type={field.type === "password" ? "password" : field.type === "url" ? "url" : "text"}
+                                                            placeholder={field.placeholder}
+                                                            value={configValues[field.key] || ""}
+                                                            onChange={(e) => setConfigValues({
+                                                                ...configValues,
+                                                                [field.key]: e.target.value
+                                                            })}
+                                                        />
+                                                    )}
+                                                    {field.helpText && (
+                                                        <p className="text-xs text-muted-foreground">
+                                                            {field.helpText}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
 
                                 <div className="flex items-center justify-between pt-4">
@@ -541,6 +559,30 @@ export default function ConnectionsPage({ params }: ConnectionsPageProps) {
                                                 <div className="space-y-1">
                                                     <p className="text-xs font-medium text-muted-foreground">Type</p>
                                                     <p className="text-xs">{integration?.name || connection.type}</p>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {integration?.webhookEndpoint && (
+                                            <div className="mt-6 p-3 rounded-lg bg-muted/50 border">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex-1 truncate mr-2">
+                                                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Webhook URL</p>
+                                                        <code className="text-xs truncate block">
+                                                            {getWebhookUrl(integration, connection.id)}
+                                                        </code>
+                                                    </div>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-7 w-7"
+                                                        onClick={() => copyToClipboard(
+                                                            getWebhookUrl(integration, connection.id) || "",
+                                                            "Webhook URL"
+                                                        )}
+                                                    >
+                                                        <Copy className="h-3.5 w-3.5" />
+                                                    </Button>
                                                 </div>
                                             </div>
                                         )}
